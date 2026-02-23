@@ -97,7 +97,7 @@ class WagPipeline:
 
         If min_user_pct was explicitly set, use that directly.
         Otherwise, auto-scale from corpus size and detail level:
-            base = ceil(2 + 0.15 * sqrt(total_users))
+            base = 6 + 0.42 * sqrt(total_users)
             min_users = max(2, round(base / detail))
 
         Higher detail -> lower threshold -> more topics.
@@ -105,7 +105,7 @@ class WagPipeline:
         """
         if self.min_user_pct_override is not None:
             return max(1, math.ceil(total_users * self.min_user_pct_override / 100.0))
-        base = 2 + 0.15 * math.sqrt(total_users)
+        base = 6 + 0.42 * math.sqrt(total_users)
         scaled = base / self.detail
         return max(2, round(scaled))
 

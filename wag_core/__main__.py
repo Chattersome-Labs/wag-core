@@ -45,8 +45,10 @@ def parse_args():
     parser.add_argument('--radius', type=int, default=1,
                         help='Co-occurrence radius in tokens (default: 1)')
     parser.add_argument('--stopword-sensitivity', type=float, default=0.6,
-                        help='Stopword detection aggressiveness 0.0-1.0 '
-                             '(default: 0.6). 0=permissive, 1=aggressive')
+                        help='Stopword DF threshold control 0.0-1.0 (default: 0.6). '
+                             'Words appearing in more than (50%% - sensitivity*40%%) '
+                             'of posts are stopwords. 0=only top function words, '
+                             '1=more aggressive')
     parser.add_argument('--resolution', type=float, default=1.0,
                         help='Leiden resolution parameter (default: 1.0)')
     parser.add_argument('--max-adjacent-topics', type=int, default=3,

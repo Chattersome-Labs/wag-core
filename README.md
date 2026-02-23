@@ -13,7 +13,7 @@ Detects topics by building word co-occurrence graphs from a corpus of posts and 
 ## How It Works
 
 1. **Tokenize** input posts (lightweight regex, no NLP dependencies)
-2. **Detect stopwords** automatically using the document frequency elbow method (language-agnostic)
+2. **Detect stopwords** automatically via document frequency threshold (language-agnostic — no bundled word lists)
 3. **Select anchor words** — tokens used by a minimum percentage of unique users
 4. **Build a co-occurrence graph** — word pairs within a sliding window, weighted by distinct user count
 5. **Cluster with Leiden** — community detection finds natural topic groupings
@@ -25,10 +25,10 @@ Detects topics by building word co-occurrence graphs from a corpus of posts and 
 ## Requirements
 
 ```
-pip install igraph leidenalg numpy
+pip install igraph leidenalg
 ```
 
-Python 3.8+. No other dependencies.
+Python 3.8+. No other dependencies (standard library only beyond igraph/leidenalg).
 
 ## Input Format
 
@@ -126,7 +126,7 @@ python3 -m wag_core \
 | `--detail` | `1.0` | Topic detail level: higher = more topics, lower = fewer. Auto-scales the user threshold from corpus size |
 | `--min-user-pct` | *(auto)* | Advanced: override auto-scaled user threshold with an explicit % of unique users |
 | `--radius` | `1` | Co-occurrence window size in tokens |
-| `--stopword-sensitivity` | `0.6` | Stopword aggressiveness: 0.0 = permissive, 1.0 = aggressive |
+| `--stopword-sensitivity` | `0.6` | Stopword DF threshold: 0.0 = only top function words (>50% of posts), 1.0 = more aggressive (>10%) |
 | `--resolution` | `1.0` | Leiden clustering resolution (higher = more clusters) |
 | `--weight-by` | `users` | Edge weight method: `users` (distinct users) or `frequency` (raw count) |
 | `--max-adjacent-topics` | `3` | Max clusters a word can bridge before pruning. Set to 0 to disable |

@@ -20,8 +20,6 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-import numpy as np
-
 from .exceptions import InputError, TokenizationError
 
 logger = logging.getLogger('wag_core')
@@ -66,20 +64,26 @@ def tokenize_text(text):
     return tokens
 
 
-def detect_stopwords(word_doc_freq, total_posts, sensitivity=0.5):
-    """Detect stopwords dynamically using elbow method on document frequency.
+def detect_stopwords(word_doc_freq, total_posts, sensitivity=0.6):
+    """Detect stopwords using a document-frequency percentage threshold.
 
-    Computes the document frequency (fraction of posts containing each word),
-    ranks words by DF descending, finds the knee in the curve, and uses
-    the sensitivity parameter to shift the cutoff.
+    A word is a stopword if it appears in more than a certain percentage
+    of all posts. The sensitivity parameter controls that threshold:
+
+        threshold = 50% - (sensitivity * 40%)
+
+    So:
+        sensitivity 0.0 -> only words in >50% of posts (just core function words)
+        sensitivity 0.6 -> only words in >26% of posts (default, conservative)
+        sensitivity 1.0 -> only words in >10% of posts (more aggressive)
+
+    This is simple, predictable, and avoids flagging high-information
+    domain words that happen to be common in a topic-focused corpus.
 
     Args:
         word_doc_freq: dict of word -> number of posts containing it
         total_posts: total number of posts
-        sensitivity: float 0.0-1.0
-            0.0 = very permissive (few stopwords)
-            0.5 = moderate (cut at natural elbow)
-            1.0 = aggressive (many stopwords)
+        sensitivity: float 0.0-1.0 controlling the DF threshold
 
     Returns:
         set of stopwords
@@ -87,96 +91,21 @@ def detect_stopwords(word_doc_freq, total_posts, sensitivity=0.5):
     if not word_doc_freq or total_posts == 0:
         return set()
 
-    # compute document frequency as fraction of total posts
-    words_and_df = []
-    for word, count in word_doc_freq.items():
-        words_and_df.append((word, count / total_posts))
+    # compute the DF threshold as a fraction
+    # sensitivity 0.0 -> 0.50, sensitivity 0.6 -> 0.26, sensitivity 1.0 -> 0.10
+    threshold = 0.50 - (sensitivity * 0.40)
+    threshold = max(0.05, min(0.50, threshold))  # clamp to 5%-50%
 
-    # sort by DF descending
-    words_and_df.sort(key=lambda x: x[1], reverse=True)
-
-    if len(words_and_df) < 3:
-        return set()
-
-    words = [w for w, _ in words_and_df]
-    df_values = np.array([df for _, df in words_and_df])
-
-    # find the knee using second derivative on log-scaled values
-    # log scale handles the zipfian distribution better
-    log_df = np.log1p(df_values * 1000)  # scale up before log for better resolution
-    ranks = np.arange(len(log_df))
-
-    # compute second derivative (curvature)
-    if len(log_df) < 5:
-        # too few words for meaningful elbow detection
-        return set()
-
-    # smooth with a small window to reduce noise
-    window = max(3, len(log_df) // 50)
-    if window % 2 == 0:
-        window += 1
-    if window >= len(log_df):
-        window = max(3, len(log_df) // 3)
-        if window % 2 == 0:
-            window += 1
-
-    # simple moving average smoothing
-    kernel = np.ones(window) / window
-    if len(log_df) > window:
-        smoothed = np.convolve(log_df, kernel, mode='valid')
-        offset = window // 2
-    else:
-        smoothed = log_df
-        offset = 0
-
-    # first derivative (rate of change)
-    first_deriv = np.diff(smoothed)
-
-    # second derivative (acceleration of change)
-    second_deriv = np.diff(first_deriv)
-
-    if len(second_deriv) == 0:
-        return set()
-
-    # the knee is where the second derivative is maximized
-    # (greatest change in slope = sharpest bend in curve)
-    knee_idx = np.argmax(np.abs(second_deriv)) + offset + 1
-
-    # apply sensitivity to shift the cutoff
-    # sensitivity 0.0 -> cut at 20% of the way toward knee (very few stopwords)
-    # sensitivity 0.5 -> cut at knee point
-    # sensitivity 1.0 -> cut at up to 3x knee position (moderately more stopwords)
-    total_words = len(words)
-    if sensitivity <= 0.5:
-        # interpolate between a minimal cutoff and the knee
-        min_cutoff = max(1, int(knee_idx * 0.2))
-        adjusted_idx = int(min_cutoff + (knee_idx - min_cutoff) * (sensitivity / 0.5))
-    else:
-        # extend past knee proportionally (up to 2x further, capped at total)
-        # at sensitivity 1.0, go to 3x knee_idx (so 2x further past the knee)
-        extra = int(knee_idx * 2.0 * ((sensitivity - 0.5) / 0.5))
-        adjusted_idx = min(knee_idx + extra, total_words - 1)
-
-    adjusted_idx = max(0, min(adjusted_idx, total_words - 1))
-
-    # everything above the cutoff DF is a stopword
-    if adjusted_idx <= 0:
-        return set()
-
-    cutoff_df = df_values[adjusted_idx]
     stopwords = set()
-    for word, df in words_and_df:
-        if df >= cutoff_df:
+    for word, count in word_doc_freq.items():
+        df = count / total_posts
+        if df >= threshold:
             stopwords.add(word)
-        else:
-            break  # sorted descending, so we can stop early
 
-    logger.info("Stopword detection: knee at rank %d (DF=%.4f), "
-                "sensitivity=%.2f -> cutoff at rank %d (DF=%.4f), "
+    logger.info("Stopword detection: sensitivity=%.2f -> DF threshold=%.1f%%, "
                 "%d stopwords detected out of %d unique tokens",
-                knee_idx, df_values[min(knee_idx, len(df_values) - 1)],
-                sensitivity, adjusted_idx, cutoff_df,
-                len(stopwords), total_words)
+                sensitivity, threshold * 100,
+                len(stopwords), len(word_doc_freq))
 
     return stopwords
 
