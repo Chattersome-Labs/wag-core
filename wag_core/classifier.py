@@ -58,14 +58,16 @@ def classify_posts(corpus, clusters, word_to_cluster, pair_freq, post_pairs,
                     anchor_words=None):
     """Classify every post against topic clusters.
 
-    Scoring: +1 per anchor word match, +1 per intra-cluster pair match.
-    Ties broken by highest cluster ID.
+    Scoring: pair-focused. Each intra-cluster pair found in the post
+    contributes +1. Single word matches are tracked for Weak/None
+    classification but do NOT contribute to the score.
 
     Classification:
-        Strong: score >= min_score for winning cluster (assigned to that cluster)
-        Weak: post contains anchor words but score is below threshold, or
-              post contains anchor words not assigned to any cluster
+        Strong: score >= 1 (at least one intra-cluster pair matched)
+        Weak: post contains anchor words but no intra-cluster pairs
         None: post contains NO anchor words at all
+
+    Ties broken by highest cluster ID.
 
     Args:
         anchor_words: set of ALL anchor words (including those not in graph).
@@ -86,37 +88,16 @@ def classify_posts(corpus, clusters, word_to_cluster, pair_freq, post_pairs,
         pc.raw_text = post['raw_text']
         pc.post_length = len(post['raw_text'])
 
-        # tally scores per cluster
+        # tally pair matches per cluster (pairs only — no single word scoring)
         tallies = defaultdict(int)
 
-        # word matches (only words assigned to a cluster)
-        for token in post['tokens_filtered']:
-            cluster_id = word_to_cluster.get(token)
-            if cluster_id is not None:
-                tallies[cluster_id] += 1
-
-        # pair matches (intra-cluster only)
         for pair in post_pairs[i]:
             cluster_id = pair_cluster.get(pair)
             if cluster_id is not None:
                 tallies[cluster_id] += 1
 
-        if not tallies:
-            # no cluster-assigned words matched; check if ANY anchor words
-            # are present (including orphaned ones not in the graph)
-            has_any_anchor = any(
-                t in anchor_words for t in post['tokens_filtered']
-            )
-            if has_any_anchor:
-                pc.cluster_id = 'weak'
-                pc.match_score = 0
-            else:
-                pc.cluster_id = 'none'
-                pc.match_score = 0
-            pc.confidence = 'high'
-            pc.top_groups = ''
-        else:
-            # find max score
+        if tallies:
+            # has at least one intra-cluster pair -> Strong
             max_score = max(tallies.values())
             top_clusters = [cid for cid, score in tallies.items()
                             if score == max_score]
@@ -126,13 +107,19 @@ def classify_posts(corpus, clusters, word_to_cluster, pair_freq, post_pairs,
             pc.match_score = max_score
             pc.top_groups = ' '.join(str(c) for c in sorted(top_clusters))
             pc.confidence = 'high' if len(top_clusters) == 1 else 'low'
-
-            # check against min_score threshold
-            min_score = clusters.get(winner, {}).get('min_score', 1)
-            if max_score >= min_score:
-                pc.cluster_id = winner
-            else:
+            pc.cluster_id = winner
+        else:
+            # no pair matches; check for any anchor word presence
+            has_any_anchor = any(
+                t in anchor_words for t in post['tokens_filtered']
+            )
+            if has_any_anchor:
                 pc.cluster_id = 'weak'
+            else:
+                pc.cluster_id = 'none'
+            pc.match_score = 0
+            pc.confidence = 'high'
+            pc.top_groups = ''
 
         # score density
         if pc.post_length > 0:

@@ -135,7 +135,7 @@ def write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
 
     with open(path, 'w', encoding='utf-8') as f:
         # header
-        f.write('mod_class\tanchor_word_count\tmin_match_score\t'
+        f.write('mod_class\tanchor_word_count\t'
                 'post_count\tuser_count\tposts_per_user\t'
                 'high_conf\tlow_conf\tpct_high_conf\t'
                 'top_score\ttop_post_length\ttop_score_per_100_char\t'
@@ -161,12 +161,11 @@ def write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
 
             top_text = s.get('top_post_text', '').replace('\t', ' ').replace('\n', ' ')
 
-            f.write('%03d\t%d\t%d\t%d\t%d\t%.2f\t%d\t%d\t%.1f\t'
+            f.write('%03d\t%d\t%d\t%d\t%.2f\t%d\t%d\t%.1f\t'
                     '%d\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t'
                     '%s\t%s\t%s\t%s\t%s\n' % (
                         cid,
                         c['word_count'],
-                        c['min_score'],
                         s.get('post_count', 0),
                         s.get('user_count', 0),
                         s.get('posts_per_user', 0.0),

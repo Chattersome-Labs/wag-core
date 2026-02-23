@@ -153,10 +153,10 @@ python3 -m wag_core \
 
 ## Classification
 
-Each post is scored against each topic cluster:
+Each post is classified based on intra-cluster word pair co-occurrence:
 
-- **Strong** — score meets the minimum threshold for that cluster (`2 + sqrt(cluster_size) - 1`)
-- **Weak** — post contains anchor words but doesn't meet the Strong threshold
+- **Strong** — at least one intra-cluster word pair co-occurs within `radius` tokens in the post (concrete topical evidence)
+- **Weak** — post contains anchor words, but no intra-cluster pairs co-occur
 - **None** — post contains no anchor words at all
 
 ## Module Structure

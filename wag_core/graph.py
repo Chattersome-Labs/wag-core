@@ -16,7 +16,6 @@
 """Graph construction, Leiden clustering, and connectivity analysis."""
 
 import logging
-import math
 from collections import defaultdict
 
 import igraph as ig
@@ -219,7 +218,6 @@ def compute_cluster_info(membership, index_to_word, corpus):
         clusters: dict of cluster_id -> {
             'words': list of words sorted by user count descending,
             'word_count': int,
-            'min_score': int
         }
         word_to_cluster: dict of word -> cluster_id
     """
@@ -236,11 +234,9 @@ def compute_cluster_info(membership, index_to_word, corpus):
         # sort by unique user count descending
         words.sort(key=lambda w: len(corpus.word_users.get(w, set())), reverse=True)
         word_count = len(words)
-        min_score = int(2 + math.sqrt(word_count)) - 1
         clusters[cluster_id] = {
             'words': words,
             'word_count': word_count,
-            'min_score': min_score,
         }
 
     logger.info("Cluster info: %d clusters, sizes: %s",
