@@ -23,6 +23,7 @@ from .exceptions import WagCoreError
 from .tokenizer import ingest_corpus, load_exclude_words
 from .graph import (select_anchor_words, build_cooccurrence_pairs,
                     build_graph, run_leiden, compute_cluster_info,
+                    enforce_cluster_size_cap,
                     compute_connectivity, find_overconnected_words)
 from .classifier import classify_posts, compute_class_stats
 from .ngrams import compute_ngrams
@@ -38,7 +39,7 @@ class WagPipeline:
                  min_user_pct=None, radius=1, stopword_sensitivity=0.6,
                  resolution=1.0, exclude_words_path=None,
                  max_adjacent_topics=3, max_iterations=None,
-                 weight_by='users'):
+                 weight_by='users', max_cluster_words=8):
         self.input_path = Path(input_path)
         self.output_dir = Path(output_dir)
         self.detail = detail
@@ -50,6 +51,7 @@ class WagPipeline:
         self.max_adjacent_topics = max_adjacent_topics
         self.max_iterations = max_iterations
         self.weight_by = weight_by
+        self.max_cluster_words = max_cluster_words
 
         self._setup_logging()
 
@@ -90,6 +92,7 @@ class WagPipeline:
             'weight_by': self.weight_by,
             'max_iterations': self.max_iterations,
             'max_adjacent_topics': self.max_adjacent_topics,
+            'max_cluster_words': self.max_cluster_words,
         }
 
     def _compute_min_users(self, total_users):
@@ -148,6 +151,19 @@ class WagPipeline:
             membership, index_to_word, corpus
         )
 
+        # enforce cluster size cap via sub-clustering
+        clusters, word_to_cluster, size_cap_exclusions = \
+            enforce_cluster_size_cap(
+                graph, clusters, word_to_cluster,
+                index_to_word, word_to_index, corpus,
+                self.max_cluster_words, self.resolution
+            )
+
+        # rebuild membership to reflect any sub-clustering changes
+        membership = [word_to_cluster.get(index_to_word.get(i), -1)
+                      for i in range(graph.vcount())]
+        num_clusters = len(clusters)
+
         connectivity = compute_connectivity(
             graph, word_to_cluster, word_to_index, corpus
         )
@@ -166,6 +182,7 @@ class WagPipeline:
             'clusters': clusters,
             'word_to_cluster': word_to_cluster,
             'connectivity': connectivity,
+            'size_cap_exclusions': size_cap_exclusions,
         }
 
     def run(self):
@@ -187,6 +204,8 @@ class WagPipeline:
         logger.info("  stopword_sensitivity: %.2f", self.stopword_sensitivity)
         logger.info("  resolution: %.2f", self.resolution)
         logger.info("  weight_by: %s", self.weight_by)
+        if self.max_cluster_words is not None:
+            logger.info("  max_cluster_words: %d", self.max_cluster_words)
 
         # load initial exclude words
         exclude_words = load_exclude_words(self.exclude_words_path)
@@ -231,22 +250,32 @@ class WagPipeline:
                     result['connectivity'], self.max_adjacent_topics
                 )
 
-                if converged:
+                size_cap_exclusions = result.get('size_cap_exclusions', set())
+
+                if converged and not size_cap_exclusions:
                     logger.info("Converged at iteration %d, "
-                                "max connectivity = %d <= %d",
+                                "max connectivity = %d <= %d, "
+                                "all clusters within size cap",
                                 epoch, max_conn, self.max_adjacent_topics)
                     break
 
-                if not overconnected:
+                new_excludes = set(overconnected) | size_cap_exclusions
+
+                if not new_excludes:
                     logger.info("No new words to exclude, stopping at "
                                 "iteration %d", epoch)
                     break
 
-                logger.info("Excluding %d words at connectivity=%d: %s",
-                            len(overconnected), max_conn,
-                            ', '.join(overconnected[:10]))
+                if overconnected:
+                    logger.info("Excluding %d words at connectivity=%d: %s",
+                                len(overconnected), max_conn,
+                                ', '.join(overconnected[:10]))
+                if size_cap_exclusions:
+                    logger.info("Excluding %d words from oversized clusters: %s",
+                                len(size_cap_exclusions),
+                                ', '.join(sorted(size_cap_exclusions)[:10]))
 
-                exclude_words = exclude_words | set(overconnected)
+                exclude_words = exclude_words | new_excludes
                 write_exclude_words(self.output_dir, exclude_words)
             else:
                 logger.warning("Reached max iterations (%d) without convergence",

@@ -17,10 +17,11 @@ Detects topics by building word co-occurrence graphs from a corpus of posts and 
 3. **Select anchor words** — tokens used by a minimum percentage of unique users
 4. **Build a co-occurrence graph** — word pairs within a sliding window, weighted by distinct user count
 5. **Cluster with Leiden** — community detection finds natural topic groupings
-6. **Iterative pruning** — optionally removes words that bridge too many clusters, re-runs until clean
-7. **Classify posts** — each post scored against each cluster; assigned Strong, Weak, or None
-8. **N-gram analysis** — top unigrams, bigrams, trigrams per topic
-9. **Output** — TSV files for analysis, Gephi-ready graph files, per-topic post lists
+6. **Cluster size cap** — oversized clusters are sub-clustered at higher Leiden resolution; single-word orphans are removed
+7. **Iterative pruning** — removes words that bridge too many clusters or resist sub-clustering, re-runs until clean
+8. **Classify posts** — each post scored against each cluster; assigned Strong, Weak, or None
+9. **N-gram analysis** — top unigrams, bigrams, trigrams per topic
+10. **Output** — TSV files for analysis, Gephi-ready graph files, per-topic post lists
 
 ## Requirements
 
@@ -65,7 +66,8 @@ python3 -m wag_core \
   --stopword-sensitivity 0.6 \
   --resolution 1.0 \
   --weight-by users \
-  --max-adjacent-topics 3
+  --max-adjacent-topics 3 \
+  --max-cluster-words 8
 ```
 
 ### Tuning for more or fewer topics
@@ -130,6 +132,7 @@ python3 -m wag_core \
 | `--resolution` | `1.0` | Leiden clustering resolution (higher = more clusters) |
 | `--weight-by` | `users` | Edge weight method: `users` (distinct users) or `frequency` (raw count) |
 | `--max-adjacent-topics` | `3` | Max clusters a word can bridge before pruning. Set to 0 to disable |
+| `--max-cluster-words` | `8` | Max anchor words per cluster. Oversized clusters are sub-clustered at higher resolution; words that resist splitting are excluded. Set to 0 to disable |
 | `--max-iterations` | `0` | Max pruning iterations. 0 = unlimited |
 | `--exclude-words` | *(none)* | Path to file with words to exclude, one per line |
 
@@ -137,7 +140,7 @@ python3 -m wag_core \
 
 | File | Description |
 |------|-------------|
-| `summary_table.tsv` | Master summary: one row per topic with anchor words, counts, top n-grams, top post |
+| `summary_table.tsv` | Master summary: one row per topic with `generic` flag, anchor words, counts, top n-grams, top post |
 | `all_posts_classified.tsv` | Every post with topic assignment, match score, confidence |
 | `clusters.txt` | Word-to-cluster assignments |
 | `node_list.tsv` | Graph nodes for Gephi (word, cluster, mentions, users) |
@@ -158,6 +161,10 @@ Each post is classified based on intra-cluster word pair co-occurrence:
 - **Strong** — at least one intra-cluster word pair co-occurs within `radius` tokens in the post (concrete topical evidence)
 - **Weak** — post contains anchor words, but no intra-cluster pairs co-occur
 - **None** — post contains no anchor words at all
+
+## Generic Flag
+
+Each topic in `summary_table.tsv` has a `generic` column (1 or 0). A cluster is flagged as generic if more than half its anchor words are used by more than 20% of unique users. This identifies clusters composed primarily of common function words (e.g., *will get see go*) rather than topical vocabulary. Downstream consumers can filter on this flag.
 
 ## Module Structure
 

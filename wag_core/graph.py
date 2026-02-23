@@ -247,6 +247,154 @@ def compute_cluster_info(membership, index_to_word, corpus):
     return clusters, word_to_cluster
 
 
+def enforce_cluster_size_cap(graph, clusters, word_to_cluster,
+                             index_to_word, word_to_index, corpus,
+                             max_cluster_words, base_resolution=1.0):
+    """Enforce maximum cluster size via sub-clustering.
+
+    For each cluster exceeding max_cluster_words:
+    1. Extract subgraph of that cluster's vertices
+    2. Re-run Leiden at progressively higher resolution (2x, 4x, 8x, 16x)
+    3. If all sub-clusters fit within the cap: adopt them
+    4. If words resist splitting even at 16x: exclude them
+
+    Returns:
+        clusters: updated cluster dict (renumbered from 0)
+        word_to_cluster: updated mapping
+        words_to_exclude: set of words that couldn't be split below the cap
+    """
+    if max_cluster_words is None:
+        return clusters, word_to_cluster, set()
+
+    oversized = {cid: info for cid, info in clusters.items()
+                 if info['word_count'] > max_cluster_words}
+
+    if not oversized:
+        return clusters, word_to_cluster, set()
+
+    logger.info("Cluster size cap (%d): %d clusters exceed limit: %s",
+                max_cluster_words, len(oversized),
+                ', '.join('c%d(%dw)' % (cid, info['word_count'])
+                          for cid, info in sorted(oversized.items())))
+
+    words_to_exclude = set()
+    new_sub_clusters = []  # list of word-lists for adopted sub-clusters
+
+    # collect small clusters unchanged
+    kept_clusters = []
+    for cid in sorted(clusters.keys()):
+        if cid not in oversized:
+            kept_clusters.append(clusters[cid]['words'])
+
+    for cid in sorted(oversized.keys()):
+        words = oversized[cid]['words']
+
+        # get vertex indices for this cluster's words
+        vertex_ids = [word_to_index[w] for w in words if w in word_to_index]
+
+        if len(vertex_ids) < 2:
+            words_to_exclude.update(words)
+            continue
+
+        # extract subgraph
+        subgraph = graph.induced_subgraph(vertex_ids)
+
+        # try progressively higher resolutions
+        split_success = False
+        best_membership = None
+
+        for res_multiplier in [2.0, 4.0, 8.0, 16.0]:
+            sub_resolution = base_resolution * res_multiplier
+            sub_membership, sub_num = run_leiden(subgraph, sub_resolution)
+
+            # check if all sub-clusters fit within the cap
+            sub_sizes = defaultdict(int)
+            for m in sub_membership:
+                sub_sizes[m] += 1
+            max_sub_size = max(sub_sizes.values())
+
+            best_membership = sub_membership
+
+            if max_sub_size <= max_cluster_words:
+                # success — all sub-clusters fit
+                for sub_cid in sorted(set(sub_membership)):
+                    sub_words = [subgraph.vs[i]['name']
+                                 for i, m in enumerate(sub_membership)
+                                 if m == sub_cid]
+                    sub_words.sort(
+                        key=lambda w: len(corpus.word_users.get(w, set())),
+                        reverse=True)
+                    new_sub_clusters.append(sub_words)
+
+                split_success = True
+                logger.info("  Cluster %d (%d words) -> %d sub-clusters "
+                            "at resolution=%.1f",
+                            cid, len(words), sub_num, sub_resolution)
+                break
+
+        if not split_success:
+            # use the last (highest resolution) attempt
+            # keep sub-clusters that fit, exclude words from ones that don't
+            kept_sub = 0
+            excluded_sub = 0
+            for sub_cid in sorted(set(best_membership)):
+                sub_words = [subgraph.vs[i]['name']
+                             for i, m in enumerate(best_membership)
+                             if m == sub_cid]
+                if len(sub_words) <= max_cluster_words:
+                    sub_words.sort(
+                        key=lambda w: len(corpus.word_users.get(w, set())),
+                        reverse=True)
+                    new_sub_clusters.append(sub_words)
+                    kept_sub += 1
+                else:
+                    words_to_exclude.update(sub_words)
+                    excluded_sub += 1
+
+            logger.info("  Cluster %d (%d words) partially split at 16x: "
+                        "%d sub-clusters kept, %d sub-clusters excluded "
+                        "(%d words)",
+                        cid, len(words), kept_sub, excluded_sub,
+                        len([w for w in words if w in words_to_exclude]))
+
+    # rebuild clusters dict with new sequential IDs
+    all_cluster_words = kept_clusters + new_sub_clusters
+
+    # remove single-word orphans (can't match posts via pair scoring)
+    orphan_words = set()
+    filtered = []
+    for wl in all_cluster_words:
+        if len(wl) <= 1:
+            orphan_words.update(wl)
+        else:
+            filtered.append(wl)
+    if orphan_words:
+        words_to_exclude.update(orphan_words)
+        logger.info("Excluding %d single-word orphan clusters: %s",
+                    len(orphan_words),
+                    ', '.join(sorted(orphan_words)[:10]))
+    all_cluster_words = filtered
+
+    # sort by size descending, then first word alphabetically for stability
+    all_cluster_words.sort(key=lambda wl: (-len(wl), wl[0] if wl else ''))
+
+    new_clusters = {}
+    new_word_to_cluster = {}
+    for new_cid, words in enumerate(all_cluster_words):
+        new_clusters[new_cid] = {
+            'words': words,
+            'word_count': len(words),
+        }
+        for w in words:
+            new_word_to_cluster[w] = new_cid
+
+    logger.info("Cluster size cap result: %d -> %d clusters, "
+                "%d words to exclude",
+                len(clusters), len(new_clusters), len(words_to_exclude))
+
+    return new_clusters, new_word_to_cluster, words_to_exclude
+
+
 def compute_connectivity(graph, word_to_cluster, word_to_index, corpus):
     """Compute cross-cluster connectivity for each word.
 

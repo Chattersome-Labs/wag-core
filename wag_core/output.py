@@ -127,6 +127,21 @@ def write_edge_list(output_dir, pair_freq, pair_users, word_to_index, word_to_cl
     logger.info("Wrote edge list to %s", path)
 
 
+def _is_generic_cluster(words, corpus, threshold=0.20):
+    """Check if a cluster is generic (majority of words have broad user coverage).
+
+    A cluster is flagged as generic if more than half its words are used by
+    more than `threshold` fraction of total unique users.
+    """
+    if not words:
+        return False
+    high_count = sum(
+        1 for w in words
+        if len(corpus.word_users.get(w, set())) > threshold * corpus.total_users
+    )
+    return high_count > len(words) / 2
+
+
 def write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
                         classifications, corpus):
     """Write master summary table TSV with per-topic statistics."""
@@ -135,7 +150,7 @@ def write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
 
     with open(path, 'w', encoding='utf-8') as f:
         # header
-        f.write('mod_class\tanchor_word_count\t'
+        f.write('mod_class\tgeneric\tanchor_word_count\t'
                 'post_count\tuser_count\tposts_per_user\t'
                 'high_conf\tlow_conf\tpct_high_conf\t'
                 'top_score\ttop_post_length\ttop_score_per_100_char\t'
@@ -147,6 +162,9 @@ def write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
             c = clusters[cid]
             s = per_cluster.get(cid, {})
             ng = cluster_ngrams.get(cid, {'unigrams': [], 'bigrams': [], 'trigrams': []})
+
+            # generic flag: majority of words used by >20% of users
+            generic = 1 if _is_generic_cluster(c['words'], corpus) else 0
 
             # top gram scores
             top_uni_score = ng['unigrams'][0][1] if ng['unigrams'] else 0.0
@@ -161,10 +179,11 @@ def write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
 
             top_text = s.get('top_post_text', '').replace('\t', ' ').replace('\n', ' ')
 
-            f.write('%03d\t%d\t%d\t%d\t%.2f\t%d\t%d\t%.1f\t'
+            f.write('%03d\t%d\t%d\t%d\t%d\t%.2f\t%d\t%d\t%.1f\t'
                     '%d\t%d\t%.2f\t%.1f\t%.1f\t%.1f\t'
                     '%s\t%s\t%s\t%s\t%s\n' % (
                         cid,
+                        generic,
                         c['word_count'],
                         s.get('post_count', 0),
                         s.get('user_count', 0),
@@ -194,11 +213,11 @@ def write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
             strong_pct = weak_pct = none_pct = 0.0
 
         f.write('\n')
-        f.write('strong\t\t\t%d\t%d\t\t\t\t\t\t\t\t\t\t\t%.1f%% of posts\n' % (
+        f.write('strong\t\t\t\t%d\t%d\t\t\t\t\t\t\t\t\t\t\t%.1f%% of posts\n' % (
             class_stats['strong_count'], class_stats['strong_users'], strong_pct))
-        f.write('weak\t\t\t%d\t%d\t\t\t\t\t\t\t\t\t\t\t%.1f%% of posts\n' % (
+        f.write('weak\t\t\t\t%d\t%d\t\t\t\t\t\t\t\t\t\t\t%.1f%% of posts\n' % (
             class_stats['weak_count'], class_stats['weak_users'], weak_pct))
-        f.write('none\t\t\t%d\t%d\t\t\t\t\t\t\t\t\t\t\t%.1f%% of posts\n' % (
+        f.write('none\t\t\t\t%d\t%d\t\t\t\t\t\t\t\t\t\t\t%.1f%% of posts\n' % (
             class_stats['none_count'], class_stats['none_users'], none_pct))
 
     logger.info("Wrote summary table to %s", path)
@@ -312,6 +331,8 @@ def write_run_stats(output_dir, corpus, clusters, class_stats,
         f.write('  weight_by: %s\n' % params.get('weight_by', 'users'))
         if params.get('max_adjacent_topics') is not None:
             f.write('  max_adjacent_topics: %d\n' % params['max_adjacent_topics'])
+        if params.get('max_cluster_words') is not None:
+            f.write('  max_cluster_words: %d\n' % params['max_cluster_words'])
         f.write('\n')
 
         f.write('Output:\n')

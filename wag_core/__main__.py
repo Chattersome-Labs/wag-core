@@ -60,6 +60,11 @@ def parse_args():
                              '(default: 3)')
     parser.add_argument('--max-iterations', type=int, default=0,
                         help='Max pruning iterations. 0 = unlimited (default: 0)')
+    parser.add_argument('--max-cluster-words', type=int, default=8,
+                        help='Max anchor words per topic cluster. Oversized '
+                             'clusters are sub-clustered at higher resolution; '
+                             'words that resist splitting are excluded. '
+                             'Set to 0 to disable. (default: 8)')
     parser.add_argument('--exclude-words', type=str, default=None,
                         help='Path to file with words to exclude (one per line)')
     parser.add_argument('--weight-by', type=str, default='users',
@@ -85,6 +90,7 @@ def main():
             max_adjacent_topics=args.max_adjacent_topics or None,
             max_iterations=args.max_iterations or None,
             weight_by=args.weight_by,
+            max_cluster_words=args.max_cluster_words or None,
         )
 
         result = pipeline.run()
