@@ -86,9 +86,10 @@ def main():
 
         print('\n=== Results ===')
         print('Topics found: %d' % result['topic_count'])
-        print('Posts: %d total, %d strong, %d weak, %d none' % (
-            result['total_posts'], result['strong_count'],
-            result['weak_count'], result['none_count']))
+        total = result['total_posts']
+        s, w, n = result['strong_count'], result['weak_count'], result['none_count']
+        print('Posts: %d total, %d strong (%.1f%%), %d weak (%.1f%%), %d none (%.1f%%)' % (
+            total, s, 100.0 * s / total, w, 100.0 * w / total, n, 100.0 * n / total))
         print('Stopwords detected: %d' % result['stopwords_detected'])
         print('Exclude words: %d' % result['exclude_words'])
         print('Output: %s' % args.output_dir)
