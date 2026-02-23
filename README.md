@@ -60,7 +60,7 @@ python3 -m wag_core --input posts.tsv --output-dir ./output
 python3 -m wag_core \
   --input posts.tsv \
   --output-dir ./output \
-  --min-user-pct 1.0 \
+  --detail 1.0 \
   --radius 1 \
   --stopword-sensitivity 0.6 \
   --resolution 1.0 \
@@ -70,23 +70,33 @@ python3 -m wag_core \
 
 ### Tuning for more or fewer topics
 
-More topics (higher user threshold, sparser graph):
+The `--detail` flag is the primary knob. The minimum user threshold is auto-scaled from corpus size; `--detail` adjusts it up or down.
+
+More topics (finer granularity):
 
 ```bash
 python3 -m wag_core \
   --input my_data/reddit_posts.tsv \
   --output-dir ./results_fine \
-  --min-user-pct 2.0
+  --detail 1.5
 ```
 
-Fewer, broader topics (lower user threshold, denser graph):
+Fewer, broader topics:
 
 ```bash
 python3 -m wag_core \
   --input my_data/reddit_posts.tsv \
   --output-dir ./results_broad \
-  --min-user-pct 0.5 \
-  --radius 2
+  --detail 0.5
+```
+
+Expert override (bypass auto-scaling with an explicit user threshold):
+
+```bash
+python3 -m wag_core \
+  --input my_data/reddit_posts.tsv \
+  --output-dir ./results_custom \
+  --min-user-pct 0.2
 ```
 
 ### With a custom exclude-words file
@@ -113,7 +123,8 @@ python3 -m wag_core \
 |------|---------|-------------|
 | `--input` | *(required)* | Path to tab-separated input file |
 | `--output-dir` | *(required)* | Directory for all output files |
-| `--min-user-pct` | `1.0` | Min % of unique users for anchor words and word pairs |
+| `--detail` | `1.0` | Topic detail level: higher = more topics, lower = fewer. Auto-scales the user threshold from corpus size |
+| `--min-user-pct` | *(auto)* | Advanced: override auto-scaled user threshold with an explicit % of unique users |
 | `--radius` | `1` | Co-occurrence window size in tokens |
 | `--stopword-sensitivity` | `0.6` | Stopword aggressiveness: 0.0 = permissive, 1.0 = aggressive |
 | `--resolution` | `1.0` | Leiden clustering resolution (higher = more clusters) |
@@ -171,7 +182,7 @@ from wag_core import WagPipeline
 pipeline = WagPipeline(
     input_path='my_data/posts.tsv',
     output_dir='./output',
-    min_user_pct=1.0,
+    detail=1.0,
 )
 result = pipeline.run()
 

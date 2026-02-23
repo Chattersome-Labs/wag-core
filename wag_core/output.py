@@ -299,11 +299,16 @@ def write_run_stats(output_dir, corpus, clusters, class_stats,
         f.write('\n')
 
         f.write('Parameters:\n')
-        f.write('  min_user_pct: %.2f%%\n' % params.get('min_user_pct', 1.0))
-        f.write('  radius: %d\n' % params.get('radius', 5))
-        f.write('  stopword_sensitivity: %.2f\n' % params.get('stopword_sensitivity', 0.5))
+        f.write('  detail: %.2f\n' % params.get('detail', 1.0))
+        if params.get('min_user_pct_override') is not None:
+            f.write('  min_user_pct (override): %.2f%%\n' % params['min_user_pct_override'])
+        if params.get('min_users') is not None:
+            f.write('  min_users (effective): %d (%.2f%%)\n' % (
+                params['min_users'], params.get('min_user_pct_effective', 0)))
+        f.write('  radius: %d\n' % params.get('radius', 1))
+        f.write('  stopword_sensitivity: %.2f\n' % params.get('stopword_sensitivity', 0.6))
         f.write('  resolution: %.2f\n' % params.get('resolution', 1.0))
-        f.write('  weight_by: %s\n' % params.get('weight_by', 'frequency'))
+        f.write('  weight_by: %s\n' % params.get('weight_by', 'users'))
         if params.get('max_adjacent_topics') is not None:
             f.write('  max_adjacent_topics: %d\n' % params['max_adjacent_topics'])
         f.write('\n')

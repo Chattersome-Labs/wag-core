@@ -34,14 +34,15 @@ logger = logging.getLogger('wag_core')
 class WagPipeline:
     """Main pipeline orchestrator for WAG topic detection."""
 
-    def __init__(self, input_path, output_dir, min_user_pct=1.0,
-                 radius=1, stopword_sensitivity=0.6,
+    def __init__(self, input_path, output_dir, detail=1.0,
+                 min_user_pct=None, radius=1, stopword_sensitivity=0.6,
                  resolution=1.0, exclude_words_path=None,
                  max_adjacent_topics=3, max_iterations=None,
                  weight_by='users'):
         self.input_path = Path(input_path)
         self.output_dir = Path(output_dir)
-        self.min_user_pct = min_user_pct
+        self.detail = detail
+        self.min_user_pct_override = min_user_pct
         self.radius = radius
         self.stopword_sensitivity = stopword_sensitivity
         self.resolution = resolution
@@ -79,7 +80,10 @@ class WagPipeline:
         """Return a dict of current parameters for output."""
         return {
             'input_path': str(self.input_path),
-            'min_user_pct': self.min_user_pct,
+            'detail': self.detail,
+            'min_user_pct_override': self.min_user_pct_override,
+            'min_users': getattr(self, '_effective_min_users', None),
+            'min_user_pct_effective': getattr(self, '_effective_min_user_pct', None),
             'radius': self.radius,
             'stopword_sensitivity': self.stopword_sensitivity,
             'resolution': self.resolution,
@@ -88,34 +92,49 @@ class WagPipeline:
             'max_adjacent_topics': self.max_adjacent_topics,
         }
 
-    def _compute_min_pair_users(self, total_users):
-        """Compute absolute min pair users from min_user_pct and corpus size."""
-        if self.min_user_pct <= 0:
-            return 0
-        return max(1, math.ceil(total_users * self.min_user_pct / 100.0))
+    def _compute_min_users(self, total_users):
+        """Compute the absolute minimum user count for anchors and pairs.
 
-    def _run_core_stages(self, exclude_words):
+        If min_user_pct was explicitly set, use that directly.
+        Otherwise, auto-scale from corpus size and detail level:
+            base = ceil(2 + 0.15 * sqrt(total_users))
+            min_users = max(2, round(base / detail))
+
+        Higher detail -> lower threshold -> more topics.
+        Lower detail -> higher threshold -> fewer topics.
+        """
+        if self.min_user_pct_override is not None:
+            return max(1, math.ceil(total_users * self.min_user_pct_override / 100.0))
+        base = 2 + 0.15 * math.sqrt(total_users)
+        scaled = base / self.detail
+        return max(2, round(scaled))
+
+    def _run_core_stages(self, exclude_words, min_users, corpus=None):
         """Run stages 1-6: ingest, stopwords, anchors, graph, Leiden, connectivity.
+
+        Args:
+            exclude_words: set of words to exclude
+            min_users: int, minimum user count for anchors and pairs
+            corpus: optional pre-ingested TokenizedCorpus (avoids re-reading)
 
         Returns dict with all intermediate results.
         """
-        corpus = ingest_corpus(
-            self.input_path,
-            stopword_sensitivity=self.stopword_sensitivity,
-            exclude_words=exclude_words,
-        )
+        if corpus is None:
+            corpus = ingest_corpus(
+                self.input_path,
+                stopword_sensitivity=self.stopword_sensitivity,
+                exclude_words=exclude_words,
+            )
 
-        anchor_words = select_anchor_words(corpus, self.min_user_pct)
-
-        min_pair_users = self._compute_min_pair_users(corpus.total_users)
+        anchor_words = select_anchor_words(corpus, min_users)
 
         pair_freq, pair_users, post_pairs = build_cooccurrence_pairs(
-            corpus, anchor_words, self.radius, min_pair_users
+            corpus, anchor_words, self.radius, min_users
         )
 
         if not pair_freq:
             raise WagCoreError(
-                "No co-occurrence pairs found. Try lowering --min-user-pct "
+                "No co-occurrence pairs found. Try raising --detail "
                 "or increasing --radius."
             )
 
@@ -160,7 +179,10 @@ class WagPipeline:
         logger.info("Starting WAG pipeline")
         logger.info("  input: %s", self.input_path)
         logger.info("  output: %s", self.output_dir)
-        logger.info("  min_user_pct: %.2f%%", self.min_user_pct)
+        logger.info("  detail: %.2f", self.detail)
+        if self.min_user_pct_override is not None:
+            logger.info("  min_user_pct override: %.2f%%",
+                        self.min_user_pct_override)
         logger.info("  radius: %d", self.radius)
         logger.info("  stopword_sensitivity: %.2f", self.stopword_sensitivity)
         logger.info("  resolution: %.2f", self.resolution)
@@ -170,6 +192,22 @@ class WagPipeline:
         exclude_words = load_exclude_words(self.exclude_words_path)
         initial_exclude_count = len(exclude_words)
 
+        # do a quick ingest to get total_users for auto-scaling
+        # (first iteration will re-ingest, but this is needed for the log)
+        corpus_peek = ingest_corpus(
+            self.input_path,
+            stopword_sensitivity=self.stopword_sensitivity,
+            exclude_words=exclude_words,
+        )
+        min_users = self._compute_min_users(corpus_peek.total_users)
+        min_user_pct_effective = 100.0 * min_users / corpus_peek.total_users
+        logger.info("  total_users: %d -> min_users: %d (%.2f%%)",
+                    corpus_peek.total_users, min_users, min_user_pct_effective)
+
+        # store for _get_params output
+        self._effective_min_users = min_users
+        self._effective_min_user_pct = min_user_pct_effective
+
         iterations_info = None
 
         if self.max_adjacent_topics is not None:
@@ -178,13 +216,16 @@ class WagPipeline:
 
             epoch = 0
             max_epochs = self.max_iterations  # None = unlimited
+            reuse_corpus = corpus_peek  # reuse first ingest
 
             while max_epochs is None or epoch < max_epochs:
                 epoch += 1
                 logger.info("=== Iteration %d (exclude words: %d) ===",
                             epoch, len(exclude_words))
 
-                result = self._run_core_stages(exclude_words)
+                result = self._run_core_stages(
+                    exclude_words, min_users, corpus=reuse_corpus)
+                reuse_corpus = None  # only reuse on first iteration
 
                 overconnected, max_conn, converged = find_overconnected_words(
                     result['connectivity'], self.max_adjacent_topics
@@ -217,7 +258,8 @@ class WagPipeline:
                 'total_excluded': len(exclude_words),
             }
         else:
-            result = self._run_core_stages(exclude_words)
+            result = self._run_core_stages(
+                exclude_words, min_users, corpus=corpus_peek)
 
         # stages 7-9: classification, n-grams, output
         corpus = result['corpus']

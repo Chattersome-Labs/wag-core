@@ -27,35 +27,31 @@ from .exceptions import GraphError
 logger = logging.getLogger('wag_core')
 
 
-def select_anchor_words(corpus, min_user_pct):
-    """Select anchor words: tokens used by >= min_user_pct% of unique users.
+def select_anchor_words(corpus, min_users):
+    """Select anchor words: tokens used by >= min_users unique users.
 
     Args:
         corpus: TokenizedCorpus instance
-        min_user_pct: float (e.g. 1.0 means 1% of users)
+        min_users: int, absolute minimum user count
 
     Returns:
         set of anchor word strings
     """
-    min_users_needed = math.ceil(corpus.total_users * min_user_pct / 100.0)
-    if min_users_needed < 1:
-        min_users_needed = 1
-
     anchors = set()
     for word, users in corpus.word_users.items():
         if word in corpus.stopwords:
             continue
-        if len(users) >= min_users_needed:
+        if len(users) >= min_users:
             anchors.add(word)
 
-    logger.info("Anchor word selection: min_user_pct=%.2f%% -> "
-                "min_users=%d -> %d anchor words selected",
-                min_user_pct, min_users_needed, len(anchors))
+    logger.info("Anchor word selection: min_users=%d -> "
+                "%d anchor words selected",
+                min_users, len(anchors))
 
     if len(anchors) < 2:
         raise GraphError(
             "Only %d anchor words found (need at least 2). "
-            "Try lowering --min-user-pct." % len(anchors)
+            "Try raising --detail." % len(anchors)
         )
 
     return anchors

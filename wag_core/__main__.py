@@ -36,9 +36,12 @@ def parse_args():
                         help='Tab-separated input file: user_id<TAB>post_text')
     parser.add_argument('--output-dir', required=True, type=str,
                         help='Directory for all output files')
-    parser.add_argument('--min-user-pct', type=float, default=1.0,
-                        help='Minimum %% of unique users required per anchor '
-                             'word and per word pair (default: 1.0)')
+    parser.add_argument('--detail', type=float, default=1.0,
+                        help='Topic detail level. Higher = more topics, '
+                             'lower = fewer broader topics (default: 1.0)')
+    parser.add_argument('--min-user-pct', type=float, default=None,
+                        help='Advanced: override auto-scaled user threshold. '
+                             'Min %% of unique users per anchor word and pair.')
     parser.add_argument('--radius', type=int, default=1,
                         help='Co-occurrence radius in tokens (default: 1)')
     parser.add_argument('--stopword-sensitivity', type=float, default=0.6,
@@ -68,6 +71,7 @@ def main():
         pipeline = WagPipeline(
             input_path=Path(args.input),
             output_dir=Path(args.output_dir),
+            detail=args.detail,
             min_user_pct=args.min_user_pct,
             radius=args.radius,
             stopword_sensitivity=args.stopword_sensitivity,
