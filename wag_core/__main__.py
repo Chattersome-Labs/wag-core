@@ -37,14 +37,10 @@ def parse_args():
     parser.add_argument('--output-dir', required=True, type=str,
                         help='Directory for all output files')
     parser.add_argument('--min-user-pct', type=float, default=1.0,
-                        help='Minimum %% of users required per anchor word '
-                             '(default: 1.0)')
-    parser.add_argument('--min-pair-user-pct', type=float, default=0.1,
-                        help='Minimum %% of users required per word pair to '
-                             'qualify as a graph edge (default: 0.1). '
-                             'Set to 0 to disable pair filtering.')
-    parser.add_argument('--radius', type=int, default=3,
-                        help='Co-occurrence radius in tokens (default: 3)')
+                        help='Minimum %% of unique users required per anchor '
+                             'word and per word pair (default: 1.0)')
+    parser.add_argument('--radius', type=int, default=1,
+                        help='Co-occurrence radius in tokens (default: 1)')
     parser.add_argument('--stopword-sensitivity', type=float, default=0.6,
                         help='Stopword detection aggressiveness 0.0-1.0 '
                              '(default: 0.6). 0=permissive, 1=aggressive')
@@ -54,6 +50,8 @@ def parse_args():
                         help='Max adjacent clusters per word before exclusion '
                              '(iterative pruning). Set to 0 to disable. '
                              '(default: 3)')
+    parser.add_argument('--max-iterations', type=int, default=0,
+                        help='Max pruning iterations. 0 = unlimited (default: 0)')
     parser.add_argument('--exclude-words', type=str, default=None,
                         help='Path to file with words to exclude (one per line)')
     parser.add_argument('--weight-by', type=str, default='users',
@@ -71,12 +69,12 @@ def main():
             input_path=Path(args.input),
             output_dir=Path(args.output_dir),
             min_user_pct=args.min_user_pct,
-            min_pair_user_pct=args.min_pair_user_pct,
             radius=args.radius,
             stopword_sensitivity=args.stopword_sensitivity,
             resolution=args.resolution,
             exclude_words_path=Path(args.exclude_words) if args.exclude_words else None,
             max_adjacent_topics=args.max_adjacent_topics or None,
+            max_iterations=args.max_iterations or None,
             weight_by=args.weight_by,
         )
 

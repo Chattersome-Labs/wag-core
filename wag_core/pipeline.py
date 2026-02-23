@@ -35,18 +35,19 @@ class WagPipeline:
     """Main pipeline orchestrator for WAG topic detection."""
 
     def __init__(self, input_path, output_dir, min_user_pct=1.0,
-                 min_pair_user_pct=0.1, radius=3, stopword_sensitivity=0.6,
+                 radius=1, stopword_sensitivity=0.6,
                  resolution=1.0, exclude_words_path=None,
-                 max_adjacent_topics=3, weight_by='users'):
+                 max_adjacent_topics=3, max_iterations=None,
+                 weight_by='users'):
         self.input_path = Path(input_path)
         self.output_dir = Path(output_dir)
         self.min_user_pct = min_user_pct
-        self.min_pair_user_pct = min_pair_user_pct
         self.radius = radius
         self.stopword_sensitivity = stopword_sensitivity
         self.resolution = resolution
         self.exclude_words_path = exclude_words_path
         self.max_adjacent_topics = max_adjacent_topics
+        self.max_iterations = max_iterations
         self.weight_by = weight_by
 
         self._setup_logging()
@@ -79,19 +80,19 @@ class WagPipeline:
         return {
             'input_path': str(self.input_path),
             'min_user_pct': self.min_user_pct,
-            'min_pair_user_pct': self.min_pair_user_pct,
             'radius': self.radius,
             'stopword_sensitivity': self.stopword_sensitivity,
             'resolution': self.resolution,
             'weight_by': self.weight_by,
+            'max_iterations': self.max_iterations,
             'max_adjacent_topics': self.max_adjacent_topics,
         }
 
     def _compute_min_pair_users(self, total_users):
-        """Compute absolute min pair users from percentage and corpus size."""
-        if self.min_pair_user_pct <= 0:
+        """Compute absolute min pair users from min_user_pct and corpus size."""
+        if self.min_user_pct <= 0:
             return 0
-        return max(1, math.ceil(total_users * self.min_pair_user_pct / 100.0))
+        return max(1, math.ceil(total_users * self.min_user_pct / 100.0))
 
     def _run_core_stages(self, exclude_words):
         """Run stages 1-6: ingest, stopwords, anchors, graph, Leiden, connectivity.
@@ -115,7 +116,7 @@ class WagPipeline:
         if not pair_freq:
             raise WagCoreError(
                 "No co-occurrence pairs found. Try lowering --min-user-pct "
-                "or --min-pair-user-pct, or increasing --radius."
+                "or increasing --radius."
             )
 
         graph, word_to_index, index_to_word = build_graph(
@@ -160,7 +161,6 @@ class WagPipeline:
         logger.info("  input: %s", self.input_path)
         logger.info("  output: %s", self.output_dir)
         logger.info("  min_user_pct: %.2f%%", self.min_user_pct)
-        logger.info("  min_pair_user_pct: %.2f%%", self.min_pair_user_pct)
         logger.info("  radius: %d", self.radius)
         logger.info("  stopword_sensitivity: %.2f", self.stopword_sensitivity)
         logger.info("  resolution: %.2f", self.resolution)
@@ -177,9 +177,9 @@ class WagPipeline:
                         self.max_adjacent_topics)
 
             epoch = 0
-            max_epochs = 50  # safety limit
+            max_epochs = self.max_iterations  # None = unlimited
 
-            while epoch < max_epochs:
+            while max_epochs is None or epoch < max_epochs:
                 epoch += 1
                 logger.info("=== Iteration %d (exclude words: %d) ===",
                             epoch, len(exclude_words))

@@ -61,8 +61,7 @@ python3 -m wag_core \
   --input posts.tsv \
   --output-dir ./output \
   --min-user-pct 1.0 \
-  --min-pair-user-pct 0.1 \
-  --radius 3 \
+  --radius 1 \
   --stopword-sensitivity 0.6 \
   --resolution 1.0 \
   --weight-by users \
@@ -71,24 +70,23 @@ python3 -m wag_core \
 
 ### Tuning for more or fewer topics
 
-More topics (tighter pairs, sparser graph):
+More topics (higher user threshold, sparser graph):
 
 ```bash
 python3 -m wag_core \
   --input my_data/reddit_posts.tsv \
   --output-dir ./results_fine \
-  --min-pair-user-pct 0.3 \
-  --radius 2
+  --min-user-pct 2.0
 ```
 
-Fewer, broader topics (looser pairs, denser graph):
+Fewer, broader topics (lower user threshold, denser graph):
 
 ```bash
 python3 -m wag_core \
   --input my_data/reddit_posts.tsv \
   --output-dir ./results_broad \
-  --min-pair-user-pct 0.05 \
-  --radius 5
+  --min-user-pct 0.5 \
+  --radius 2
 ```
 
 ### With a custom exclude-words file
@@ -115,13 +113,13 @@ python3 -m wag_core \
 |------|---------|-------------|
 | `--input` | *(required)* | Path to tab-separated input file |
 | `--output-dir` | *(required)* | Directory for all output files |
-| `--min-user-pct` | `1.0` | Min % of unique users for a word to be an anchor word |
-| `--min-pair-user-pct` | `0.1` | Min % of users for a word pair to become a graph edge |
-| `--radius` | `3` | Co-occurrence window size in tokens |
+| `--min-user-pct` | `1.0` | Min % of unique users for anchor words and word pairs |
+| `--radius` | `1` | Co-occurrence window size in tokens |
 | `--stopword-sensitivity` | `0.6` | Stopword aggressiveness: 0.0 = permissive, 1.0 = aggressive |
 | `--resolution` | `1.0` | Leiden clustering resolution (higher = more clusters) |
 | `--weight-by` | `users` | Edge weight method: `users` (distinct users) or `frequency` (raw count) |
 | `--max-adjacent-topics` | `3` | Max clusters a word can bridge before pruning. Set to 0 to disable |
+| `--max-iterations` | `0` | Max pruning iterations. 0 = unlimited |
 | `--exclude-words` | *(none)* | Path to file with words to exclude, one per line |
 
 ## Output Files
@@ -173,8 +171,7 @@ from wag_core import WagPipeline
 pipeline = WagPipeline(
     input_path='my_data/posts.tsv',
     output_dir='./output',
-    min_pair_user_pct=0.2,
-    max_adjacent_topics=3,
+    min_user_pct=1.0,
 )
 result = pipeline.run()
 

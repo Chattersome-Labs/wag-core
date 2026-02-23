@@ -304,8 +304,6 @@ def write_run_stats(output_dir, corpus, clusters, class_stats,
         f.write('  stopword_sensitivity: %.2f\n' % params.get('stopword_sensitivity', 0.5))
         f.write('  resolution: %.2f\n' % params.get('resolution', 1.0))
         f.write('  weight_by: %s\n' % params.get('weight_by', 'frequency'))
-        if params.get('min_pair_user_pct', 0) > 0:
-            f.write('  min_pair_user_pct: %.2f%%\n' % params['min_pair_user_pct'])
         if params.get('max_adjacent_topics') is not None:
             f.write('  max_adjacent_topics: %d\n' % params['max_adjacent_topics'])
         f.write('\n')
