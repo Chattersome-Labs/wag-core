@@ -1,6 +1,6 @@
 # wag_core
 
-**Weighted Adjacency Graph (WAG)** topic detection engine for text collections.
+**Weighted Adjacency Graph (WAG)** topic detection engine for text collections. Current version: **0.1.0**
 
 ## Abstract
 

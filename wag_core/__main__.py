@@ -20,6 +20,7 @@ import logging
 import sys
 from pathlib import Path
 
+from . import __version__
 from .pipeline import WagPipeline
 from .exceptions import WagCoreError
 
@@ -32,6 +33,8 @@ def parse_args():
                     'graphs and Leiden community detection.',
     )
 
+    parser.add_argument('--version', action='version',
+                        version='wag_core %s' % __version__)
     parser.add_argument('--input', required=True, type=str,
                         help='Tab-separated input file: user_id<TAB>post_text')
     parser.add_argument('--output-dir', required=True, type=str,

@@ -288,8 +288,10 @@ def write_run_stats(output_dir, corpus, clusters, class_stats,
     path = Path(output_dir) / 'run_stats.txt'
     total = class_stats['total_posts']
 
+    from . import __version__
+
     with open(path, 'w', encoding='utf-8') as f:
-        f.write('=== WAG Core Run Statistics ===\n\n')
+        f.write('=== WAG Core v%s Run Statistics ===\n\n' % __version__)
 
         f.write('Input:\n')
         f.write('  Posts: %d\n' % corpus.total_posts)
