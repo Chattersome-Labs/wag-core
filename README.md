@@ -1,6 +1,12 @@
 # wag_core
 
-**Word Adjacency Graph** topic detection engine for text collections.
+**Weighted Adjacency Graph (WAG)** topic detection engine for text collections.
+
+## Abstract
+
+Weighted Adjacency Graph (WAG) modeling introduces a population-weighted, graph-based framework for topic detection in document collections. Unlike traditional probabilistic models that require pre-specifying the number of topics, WAG modeling uses a minimum unique-user threshold as its primary control parameter, allowing topics to emerge naturally from vocabulary shared across participants in a discourse community. The method constructs a weighted adjacency graph over population-qualified n-grams, applies network dismantling to reduce the influence of overconnected vocabulary, and employs community detection to identify coherent topic clusters. Documents lacking population-qualified terms define a principled "miscellaneous" boundary, enabling exclusion of idiosyncratic or low-signal material prior to summarization. Because the approach relies solely on internal co-occurrence structure and author participation counts, it is domain-agnostic and applicable to multilingual corpora as well as structured token sequences such as system logs. WAG modeling offers an interpretable, parameter-light alternative to optimization-heavy topic models, emphasizing emergence, transparency, and population-representative discourse structure.
+
+## Overview
 
 Detects topics by building word co-occurrence graphs from a corpus of posts and clustering them with the [Leiden algorithm](https://www.nature.com/articles/s41598-019-41695-z). Works with any language, any domain — social media, logs, technical documentation, or anything else made of text.
 
