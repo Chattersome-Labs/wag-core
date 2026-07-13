@@ -22,6 +22,7 @@ from pathlib import Path
 
 from . import __version__
 from .pipeline import WagPipeline
+from .tokenizer import resolve_exclude_words_spec
 from .exceptions import WagCoreError
 
 
@@ -66,7 +67,11 @@ def parse_args():
                              'words that resist splitting are excluded. '
                              'Set to 0 to disable. (default: 8)')
     parser.add_argument('--exclude-words', type=str, default=None,
-                        help='Path to file with words to exclude (one per line)')
+                        help='Words to exclude before graph construction. Either a '
+                             'path to a file (one word per line) or "builtin:<lang>" '
+                             'to use a bundled list (e.g. "builtin:en" for the '
+                             'recommended English glue-word list). Default: none '
+                             '(language-agnostic).')
     parser.add_argument('--weight-by', type=str, default='users',
                         choices=['frequency', 'users'],
                         help='Edge weight method (default: users)')
@@ -86,7 +91,7 @@ def main():
             radius=args.radius,
             stopword_sensitivity=args.stopword_sensitivity,
             resolution=args.resolution,
-            exclude_words_path=Path(args.exclude_words) if args.exclude_words else None,
+            exclude_words_path=resolve_exclude_words_spec(args.exclude_words),
             max_adjacent_topics=args.max_adjacent_topics or None,
             max_iterations=args.max_iterations or None,
             weight_by=args.weight_by,

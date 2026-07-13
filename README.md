@@ -1,6 +1,6 @@
 # wag_core
 
-**Weighted Adjacency Graph (WAG)** topic detection engine for text collections. Current version: **0.1.0**
+**Weighted Adjacency Graph (WAG)** topic detection engine for text collections. Current version: **0.2.0**
 
 ## Abstract
 
@@ -13,7 +13,7 @@ Detects topics by building word co-occurrence graphs from a corpus of posts and 
 ## How It Works
 
 1. **Tokenize** input posts (lightweight regex, no NLP dependencies)
-2. **Detect stopwords** automatically via document frequency threshold (language-agnostic — no bundled word lists)
+2. **Detect stopwords** automatically via a document-frequency threshold — language-agnostic, no word list applied by default (an optional English list is bundled for opt-in use; see [Built-in English stopword list](#built-in-english-stopword-list))
 3. **Select anchor words** — tokens used by a minimum percentage of unique users
 4. **Build a co-occurrence graph** — word pairs within a sliding window, weighted by distinct user count
 5. **Cluster with Leiden** — community detection finds natural topic groupings
@@ -101,6 +101,19 @@ python3 -m wag_core \
   --min-user-pct 0.2
 ```
 
+### Built-in English stopword list
+
+For English-language corpora, pass `--exclude-words builtin:en` to apply a bundled list of ~800 low-information "glue" words — function words, contractions, conversational fillers, profanity intensifiers — that are almost never the core subject of a topic. Removing them before graph construction keeps anchor-word harvesting focused on topical vocabulary, and lets the iterative-pruning loop spend its passes on corpus-specific overconnected words instead of rediscovering generic English every run.
+
+```bash
+python3 -m wag_core \
+  --input my_data/reddit_posts.tsv \
+  --output-dir ./output \
+  --exclude-words builtin:en
+```
+
+The list is **English only** — wag_core stays language-agnostic by default, so for other languages omit the flag or supply your own file. By design it contains only words that could never be a topic's core subject in *any* community; domain terms and even time-generics like *days*/*years* are deliberately left to per-corpus dynamic pruning, so nothing topical is lost. Programmatic users can resolve the path with `wag_core.builtin_stopwords_path('en')`.
+
 ### With a custom exclude-words file
 
 ```bash
@@ -134,7 +147,7 @@ python3 -m wag_core \
 | `--max-adjacent-topics` | `3` | Max clusters a word can bridge before pruning. Set to 0 to disable |
 | `--max-cluster-words` | `8` | Max anchor words per cluster. Oversized clusters are sub-clustered at higher resolution; words that resist splitting are excluded. Set to 0 to disable |
 | `--max-iterations` | `0` | Max pruning iterations. 0 = unlimited |
-| `--exclude-words` | *(none)* | Path to file with words to exclude, one per line |
+| `--exclude-words` | *(none)* | Words to exclude before graph construction: a file path (one word per line) or `builtin:<lang>` for a bundled list (e.g. `builtin:en`, the recommended English glue-word list) |
 
 ## Output Files
 
@@ -179,6 +192,7 @@ wag_core/
     ngrams.py         # Per-cluster n-gram analysis
     output.py         # All output file writers
     pipeline.py       # Orchestrator with iterative pruning loop
+    data/             # Bundled optional resources (e.g. stopwords_en.txt)
 ```
 
 ## Programmatic Use
