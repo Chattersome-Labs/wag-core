@@ -22,7 +22,8 @@ word co-occurrence graphs and Leiden community detection.
 Works with any language, any domain (social media, logs, technical docs).
 """
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 from .pipeline import WagPipeline
 from .exceptions import WagCoreError, InputError
+from .tokenizer import builtin_stopwords_path

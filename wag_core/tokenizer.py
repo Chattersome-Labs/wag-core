@@ -134,6 +134,42 @@ def load_exclude_words(exclude_path):
     return words
 
 
+# Bundled, opt-in stopword lists. wag_core applies NO word list by default
+# (it is language-agnostic); these are a convenience for common languages,
+# selected via `--exclude-words builtin:<lang>` or builtin_stopwords_path().
+_DATA_DIR = Path(__file__).parent / 'data'
+_BUILTIN_STOPWORDS = {'en': 'stopwords_en.txt'}
+
+
+def builtin_stopwords_path(lang='en'):
+    """Return the path to a bundled stopword list for a language (e.g. 'en').
+
+    Raises InputError if no list is bundled for the requested language.
+    """
+    fname = _BUILTIN_STOPWORDS.get(lang.lower())
+    if fname is None:
+        raise InputError(
+            "No bundled stopword list for language %r. Available: %s"
+            % (lang, ', '.join(sorted(_BUILTIN_STOPWORDS))))
+    return _DATA_DIR / fname
+
+
+def resolve_exclude_words_spec(spec):
+    """Resolve an --exclude-words value to a filesystem Path (or None).
+
+    'builtin' or 'builtin:<lang>' (e.g. 'builtin:en') resolves to a bundled
+    list; any other value is treated as a filesystem path. A falsy spec
+    returns None (no exclude list).
+    """
+    if not spec:
+        return None
+    s = str(spec).strip()
+    if s == 'builtin' or s.startswith('builtin:'):
+        _, _, lang = s.partition(':')
+        return builtin_stopwords_path(lang or 'en')
+    return Path(spec)
+
+
 def ingest_corpus(input_path, stopword_sensitivity=0.5, exclude_words=None):
     """Read input file, tokenize all posts, detect stopwords, build corpus.
 
