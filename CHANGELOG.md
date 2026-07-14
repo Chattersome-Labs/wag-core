@@ -3,6 +3,15 @@
 All notable changes to `wag_core` are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-07-13
+
+### Added
+- **`grams_table.tsv`** output — the full ranked n-gram set per cluster (up to 21
+  unigrams / bigrams / trigrams each, with group-proportion scores). `summary_table.tsv`
+  still carries only the compact top 5/3/3 for overview; this new file exposes the complete
+  ranked lists that `compute_ngrams()` already produces, for downstream tools that display
+  longer n-gram lists. Non-breaking (purely additive).
+
 ## [0.2.0] - 2026-07-13
 
 ### Added

@@ -1,6 +1,6 @@
 # wag_core
 
-**Weighted Adjacency Graph (WAG)** topic detection engine for text collections. Current version: **0.2.0**
+**Weighted Adjacency Graph (WAG)** topic detection engine for text collections. Current version: **0.3.0**
 
 ## Abstract
 
@@ -154,6 +154,7 @@ python3 -m wag_core \
 | File | Description |
 |------|-------------|
 | `summary_table.tsv` | Master summary: one row per topic with `generic` flag, anchor words, counts, top n-grams, top post |
+| `grams_table.tsv` | Full ranked n-grams per topic (up to 21 unigrams/bigrams/trigrams each, with group-proportion scores) — the long-form companion to `summary_table`'s top 5/3/3 |
 | `all_posts_classified.tsv` | Every post with topic assignment, match score, confidence |
 | `clusters.txt` | Word-to-cluster assignments |
 | `node_list.tsv` | Graph nodes for Gephi (word, cluster, mentions, users) |

@@ -223,6 +223,32 @@ def write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
     logger.info("Wrote summary table to %s", path)
 
 
+def write_grams_table(output_dir, clusters, cluster_ngrams, top_n=21):
+    """Write the full ranked n-gram set per cluster.
+
+    summary_table.tsv only carries the top 5 unigrams / 3 bigrams / 3 trigrams
+    for a compact overview; this file carries the full scored set (up to top_n
+    each) that compute_ngrams() produces, for downstream tools that display
+    longer ranked lists. One row per gram:
+
+        cluster_id <TAB> gram_type <TAB> score <TAB> gram
+
+    where gram_type is 'unigram' | 'bigram' | 'trigram' and score is the
+    group-proportion percentage (posts containing the gram / posts in cluster).
+    """
+    path = Path(output_dir) / 'grams_table.tsv'
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write('cluster_id\tgram_type\tscore\tgram\n')
+        for cid in sorted(clusters.keys()):
+            ng = cluster_ngrams.get(cid, {'unigrams': [], 'bigrams': [], 'trigrams': []})
+            for gram_type, key in (('unigram', 'unigrams'),
+                                   ('bigram', 'bigrams'),
+                                   ('trigram', 'trigrams')):
+                for gram, score in ng[key][:top_n]:
+                    f.write('%03d\t%s\t%.4f\t%s\n' % (cid, gram_type, score, gram))
+    logger.info("Wrote grams table to %s", path)
+
+
 def write_all_posts_classified(output_dir, classifications):
     """Write every post with its classification."""
     path = Path(output_dir) / 'all_posts_classified.tsv'
@@ -379,6 +405,7 @@ def write_all_outputs(output_dir, corpus, clusters, word_to_cluster,
     write_edge_list(output_dir, pair_freq, pair_users, word_to_index, word_to_cluster)
     write_summary_table(output_dir, clusters, class_stats, cluster_ngrams,
                         classifications, corpus)
+    write_grams_table(output_dir, clusters, cluster_ngrams)
     write_all_posts_classified(output_dir, classifications)
     write_per_topic_post_lists(output_dir, classifications, clusters)
     write_run_stats(output_dir, corpus, clusters, class_stats, params, iterations)
